@@ -61,7 +61,7 @@ if st.session_state.usage_count >= MAX_LIMIT:
 st.caption(f"Free usage left: {MAX_LIMIT - st.session_state.usage_count}")
 
 # ---------------- LLM ----------------
-llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.2)
+llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0.2)
 
 # ---------------- FUN FACTS ----------------
 def show_fun_fact():
@@ -304,3 +304,4 @@ Question:
             response = llm.invoke(qa_prompt)
             st.markdown("### 🤖 Answer")
             st.write(response.content)
+
