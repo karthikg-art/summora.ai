@@ -17,22 +17,67 @@ client = OpenAI()
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(page_title="Summora.AI", page_icon="✨", layout="centered")
 
+# ---------------- FUTURISTIC TEXT STYLE ----------------
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&display=swap');
+
+.futuristic-title {
+    text-align: center;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 60px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    margin-bottom: 10px;
+
+    background: linear-gradient(
+        90deg,
+        #00f5ff,
+        #3b82f6,
+        #7c3aed,
+        #00f5ff
+    );
+
+    background-size: 300% auto;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+
+    animation: shine 6s linear infinite;
+}
+
+.futuristic-subtitle {
+    text-align: center;
+    font-size: 18px;
+    color: #9ca3af;
+    margin-bottom: 40px;
+}
+
+/* Glow in dark mode */
+@media (prefers-color-scheme: dark) {
+    .futuristic-title {
+        text-shadow:
+            0 0 20px rgba(0,255,255,0.6),
+            0 0 40px rgba(124,58,237,0.5);
+    }
+}
+
+/* Gradient animation */
+@keyframes shine {
+    to {
+        background-position: 300% center;
+    }
+}
+</style>
+""", unsafe_allow_html=True)
+
 # ---------------- HEADER ----------------
 st.markdown("""
-<h1 style='text-align:center; font-size:48px; font-weight:700; letter-spacing:2px;'>
-<span style="color:#8B00FF;">S</span>
-<span style="color:#4B0082;">u</span>
-<span style="color:#0000FF;">m</span>
-<span style="color:#00FF00;">m</span>
-<span style="color:#FFFF00;">o</span>
-<span style="color:#FF7F00;">r</span>
-<span style="color:#FF0000;">a</span>
-<span style="color:#94a3b8;">.</span>
-<span style="color:#00FF00;">AI</span>
-</h1>
-<p style='text-align:center;color:#64748b; font-size:18px;'>
-YouTube Video Summarize Agent
-</p>
+<div class="futuristic-title">
+Summora.AI
+</div>
+<div class="futuristic-subtitle">
+AI-Powered YouTube Video Summaries
+</div>
 """, unsafe_allow_html=True)
 
 st.divider()
@@ -304,4 +349,3 @@ Question:
             response = llm.invoke(qa_prompt)
             st.markdown("### 🤖 Answer")
             st.write(response.content)
-
