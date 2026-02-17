@@ -1,66 +1,96 @@
 import streamlit as st
 from langchain_openai import ChatOpenAI
+from langchain_core.prompts import PromptTemplate
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from dotenv import load_dotenv
 from openai import OpenAI
 import yt_dlp
+import requests
 import tempfile
 import re
 import time
 import random
-import os
 
 load_dotenv()
-
 client = OpenAI()
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(page_title="Summora.AI", page_icon="✨", layout="centered")
 
-# ---------------- FUTURISTIC UI ----------------
+# ---------------- FUTURISTIC TEXT STYLE ----------------
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&display=swap');
 
-.title {
-    text-align:center;
-    font-family:'Orbitron', sans-serif;
-    font-size:56px;
-    background: linear-gradient(90deg,#00f5ff,#7c3aed,#00f5ff);
-    -webkit-background-clip:text;
-    -webkit-text-fill-color:transparent;
+.futuristic-title {
+    text-align: center;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 60px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    margin-bottom: 10px;
+
+    background: linear-gradient(
+        90deg,
+        #00f5ff,
+        #3b82f6,
+        #7c3aed,
+        #00f5ff
+    );
+
+    background-size: 300% auto;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+
+    animation: shine 6s linear infinite;
 }
-.subtitle {
-    text-align:center;
-    color:#9ca3af;
-    margin-bottom:30px;
+
+.futuristic-subtitle {
+    text-align: center;
+    font-size: 18px;
+    color: #9ca3af;
+    margin-bottom: 40px;
+}
+
+/* Glow in dark mode */
+@media (prefers-color-scheme: dark) {
+    .futuristic-title {
+        text-shadow:
+            0 0 20px rgba(0,255,255,0.6),
+            0 0 40px rgba(124,58,237,0.5);
+    }
+}
+
+/* Gradient animation */
+@keyframes shine {
+    to {
+        background-position: 300% center;
+    }
 }
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="title">Summora.AI</div>', unsafe_allow_html=True)
-st.markdown('<div class="subtitle">AI-Powered YouTube Video Summaries</div>', unsafe_allow_html=True)
+# ---------------- HEADER ----------------
+st.markdown("""
+<div class="futuristic-title">
+Summora.AI
+</div>
+<div class="futuristic-subtitle">
+AI-Powered YouTube Video Summaries
+</div>
+""", unsafe_allow_html=True)
 
 st.divider()
 
-# ---------------- SETTINGS ----------------
+# ---------------- LANGUAGE + MODE ----------------
 output_language = st.selectbox(
     "Select Output Language",
     ["English", "Hindi", "Tamil", "Telugu", "Kannada", "Malayalam", "Bengali"]
 )
 
-summary_mode = st.radio("Output Mode", ["Text Summary", "Audio Summary"])
-
-professional_mode = st.selectbox(
-    "Select Output Format",
-    [
-        "Executive Report",
-        "Deep Analysis",
-        "YouTube Script",
-        "LinkedIn Post",
-        "Twitter Thread",
-        "Blog Draft"
-    ]
+summary_mode = st.radio(
+    "Select Summary Mode",
+    ["Text Summary", "Audio Summary"]
 )
 
 # ---------------- USAGE LIMIT ----------------
@@ -78,137 +108,135 @@ st.caption(f"Free usage left: {MAX_LIMIT - st.session_state.usage_count}")
 # ---------------- LLM ----------------
 llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0.2)
 
-# ---------------- FUN FACT ----------------
+# ---------------- FUN FACTS ----------------
 def show_fun_fact():
     facts = [
         "🤖 AI models process thousands of tokens per second.",
-        "🧠 Whisper can transcribe multiple languages accurately.",
-        "📊 Structured extraction reduces hallucination.",
-        "⚡ Chunking improves large context reasoning."
+        "📊 Semantic chunking improves reasoning accuracy.",
+        "🧠 Overlapping chunks reduce information loss.",
+        "🌍 GPT models support over 100 languages.",
+        "⚡ Extract-first summarization reduces hallucination.",
+        "🎯 Grounded prompts prevent invented information.",
+        "🔍 Structured extraction improves completeness.",
+        "📈 Hierarchical summarization improves quality."
     ]
     return random.choice(facts)
 
-# ---------------- DOWNLOAD AUDIO ----------------
-def download_audio(video_url):
+# ---------------- TRANSCRIPT ----------------
+def get_video_data(video_url):
     try:
-        temp_dir = tempfile.mkdtemp()
-        output_path = os.path.join(temp_dir, "audio.%(ext)s")
-
         ydl_opts = {
-            "format": "bestaudio/best",
-            "outtmpl": output_path,
-            "quiet": True
+            "skip_download": True,
+            "writesubtitles": True,
+            "writeautomaticsub": True,
+            "quiet": True,
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([video_url])
+            info = ydl.extract_info(video_url, download=False)
 
-        # Find downloaded file
-        for file in os.listdir(temp_dir):
-            return os.path.join(temp_dir, file)
+            duration = info.get("duration", 0)
+            if duration > 1800:
+                return None, None, "Video too long. Use under 30 minutes."
+
+            detected_language = info.get("language", None)
+
+            subtitle_url = None
+
+            if "subtitles" in info and info["subtitles"]:
+                if "en" in info["subtitles"]:
+                    subtitle_url = info["subtitles"]["en"][0]["url"]
+                else:
+                    first_lang = list(info["subtitles"].keys())[0]
+                    subtitle_url = info["subtitles"][first_lang][0]["url"]
+
+            elif "automatic_captions" in info and info["automatic_captions"]:
+                if "en" in info["automatic_captions"]:
+                    subtitle_url = info["automatic_captions"]["en"][0]["url"]
+                else:
+                    first_lang = list(info["automatic_captions"].keys())[0]
+                    subtitle_url = info["automatic_captions"][first_lang][0]["url"]
+
+            if not subtitle_url:
+                return None, None, "No captions available."
+
+        response = requests.get(subtitle_url)
+        return response.text, detected_language, None
 
     except:
-        return None
+        return None, None, "Transcript extraction failed."
 
-# ---------------- WHISPER TRANSCRIPTION ----------------
-def transcribe_audio(file_path):
-    with open(file_path, "rb") as audio_file:
-        transcript = client.audio.transcriptions.create(
-            model="whisper-1",
-            file=audio_file
-        )
-    return transcript.text
+# ---------------- LANGUAGE FALLBACK ----------------
+def detect_language_from_text(text):
+    prompt = f"""
+Detect the primary language of this text.
+Respond with only the language name.
+
+{text[:2000]}
+"""
+    response = llm.invoke(prompt)
+    return response.content.strip()
 
 # ---------------- CHUNKING ----------------
 def split_text(text):
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=3500,
-        chunk_overlap=500
+        chunk_overlap=600
     )
     return splitter.split_text(text)
 
-# ---------------- PROFESSIONAL PROMPT ----------------
-def generate_output(content, language, mode):
+# ---------------- AUDIO ----------------
+def generate_audio(text):
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmpfile:
+            speech = client.audio.speech.create(
+                model="gpt-4o-mini-tts",
+                voice="alloy",
+                input=text
+            )
+            tmpfile.write(speech.content)
+            return tmpfile.name
+    except:
+        return None
 
-    if mode == "Executive Report":
-        instruction = """
+# ---------------- PROMPTS ----------------
+section_prompt = PromptTemplate.from_template("""
+Extract ONLY factual information from this transcript section.
+
+Identify:
+- Main claims
+- Key explanations
+- Examples mentioned
+- Any numbers/statistics
+
+Rules:
+- Do NOT generalize.
+- Do NOT invent.
+- Only extract explicit information.
+
+{text}
+
+Return structured bullet points.
+""")
+
+final_prompt = PromptTemplate.from_template("""
+Using ONLY the extracted bullet points below, generate a structured report.
+
+Rules:
+- Do NOT invent.
+- Do NOT generalize.
+- If missing info, say "Not explicitly mentioned."
+
 Provide:
 1. Executive Summary
 2. Key Insights
 3. Actionable Takeaways
-"""
-
-    elif mode == "Deep Analysis":
-        instruction = """
-Provide:
-1. Executive Summary
-2. Detailed Breakdown
-3. Strategic Implications
-4. Risks
-5. Action Plan
-"""
-
-    elif mode == "YouTube Script":
-        instruction = """
-Convert into engaging YouTube narration.
-No headings.
-Conversational style.
-"""
-
-    elif mode == "LinkedIn Post":
-        instruction = """
-Create high-value LinkedIn post.
-Strong hook.
-Professional tone.
-"""
-
-    elif mode == "Twitter Thread":
-        instruction = """
-Convert into Twitter thread format (1/,2/,3/).
-Short lines.
-"""
-
-    else:
-        instruction = """
-Write SEO-friendly blog draft with sections.
-"""
-
-    prompt = f"""
-Using ONLY the content below.
-Do NOT invent.
 
 Write in {language}.
 
-{instruction}
-
-Content:
-{content}
-"""
-
-    return llm.invoke(prompt).content
-
-# ---------------- EMOTION ANALYSIS ----------------
-def analyze_emotion(text):
-    prompt = f"""
-Detect tone:
-serious, inspirational, urgent, analytical, calm, exciting.
-
-Return single word.
-
-{text}
-"""
-    return llm.invoke(prompt).content.lower()
-
-# ---------------- VOICE SELECTION ----------------
-def select_voice(tone):
-    if "inspirational" in tone:
-        return "aria"
-    elif "serious" in tone:
-        return "verse"
-    elif "exciting" in tone:
-        return "aria"
-    else:
-        return "alloy"
+Extracted Content:
+{combined_summary}
+""")
 
 # ---------------- INPUT ----------------
 url = st.text_input("Paste YouTube URL")
@@ -216,89 +244,108 @@ generate = st.button("🚀 Generate Summary")
 
 # ---------------- MAIN LOGIC ----------------
 if generate:
-
     if not url:
-        st.warning("Please enter URL.")
-        st.stop()
-
-    st.session_state.usage_count += 1
-
-    progress = st.progress(0)
-    status = st.empty()
-    fact = st.empty()
-
-    status.info("🎧 Downloading audio...")
-    progress.progress(10)
-    fact.caption(show_fun_fact())
-    time.sleep(1)
-
-    audio_file = download_audio(url)
-
-    if not audio_file:
-        st.error("Audio download failed.")
-        st.stop()
-
-    status.info("📝 Transcribing with Whisper...")
-    progress.progress(30)
-
-    transcript = transcribe_audio(audio_file)
-
-    transcript = transcript[:30000]
-
-    status.info("🧠 Analyzing transcript...")
-    progress.progress(50)
-
-    chunks = split_text(transcript)
-
-    extracted = []
-    for i, chunk in enumerate(chunks):
-        result = llm.invoke(f"Extract key factual insights:\n{chunk}")
-        extracted.append(result.content)
-        progress.progress(50 + int((i+1)/len(chunks)*20))
-
-    combined = "\n\n".join(extracted)
-
-    status.info("📊 Generating professional output...")
-    progress.progress(80)
-
-    final_output = generate_output(
-        combined,
-        output_language,
-        professional_mode
-    )
-
-    progress.progress(95)
-
-    if summary_mode == "Text Summary":
-        progress.progress(100)
-        status.success("✅ Summary Report Ready")
-        fact.empty()
-        st.markdown(final_output)
-
-        st.download_button(
-            "📄 Download Summary",
-            data=final_output,
-            file_name="summora_output.txt"
-        )
-
+        st.warning("Please enter a YouTube URL.")
     else:
-        status.info("🎙 Creating emotional narration...")
-        tone = analyze_emotion(final_output)
-        voice = select_voice(tone)
+        st.session_state.usage_count += 1
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmpfile:
-            speech = client.audio.speech.create(
-                model="gpt-4o-mini-tts",
-                voice=voice,
-                input=final_output
+        progress_box = st.empty()
+        fact_box = st.empty()
+        progress_bar = st.progress(0)
+
+        progress_box.info("🔍 Fetching transcript...")
+        progress_bar.progress(10)
+        fact_box.caption(show_fun_fact())
+        time.sleep(1)
+
+        transcript, detected_lang, error = get_video_data(url)
+
+        if error:
+            st.error(error)
+        else:
+            transcript = re.sub("<.*?>", "", transcript)
+            transcript = transcript[:25000]
+
+            if not detected_lang:
+                detected_lang = detect_language_from_text(transcript)
+
+            st.info(f"Detected Language: {detected_lang}")
+            st.session_state["transcript"] = transcript
+
+            progress_box.info("🧠 Analyzing transcript structure...")
+            progress_bar.progress(30)
+            fact_box.caption(show_fun_fact())
+            time.sleep(1)
+
+            chunks = split_text(transcript)
+            section_extractions = []
+
+            progress_box.info("📊 Extracting key insights...")
+            progress_bar.progress(50)
+            fact_box.caption(show_fun_fact())
+
+            for i, chunk in enumerate(chunks):
+                formatted = section_prompt.format(text=chunk)
+                response = llm.invoke(formatted)
+                section_extractions.append(response.content)
+
+                chunk_progress = 50 + int((i + 1) / len(chunks) * 20)
+                progress_bar.progress(chunk_progress)
+
+            combined_extraction = "\n\n".join(section_extractions)
+
+            progress_box.info("🧩 Synthesizing intelligence report...")
+            progress_bar.progress(80)
+            fact_box.caption(show_fun_fact())
+            time.sleep(1)
+
+            final_formatted = final_prompt.format(
+                combined_summary=combined_extraction,
+                language=output_language
             )
-            tmpfile.write(speech.content)
-            audio_path = tmpfile.name
+            final_response = llm.invoke(final_formatted)
 
-        progress.progress(100)
-        status.success("🎙 Emotion-Aware Audio Ready")
-        fact.empty()
-        st.audio(audio_path)
+            progress_bar.progress(95)
 
+            if summary_mode == "Audio Summary":
+                progress_box.info("🔊 Generating AI voice narration...")
+                fact_box.caption("🎧 Converting summary into natural speech...")
+                audio_file = generate_audio(final_response.content)
+                progress_bar.progress(100)
+                progress_box.success("✅ Audio Summary Ready")
+                fact_box.empty()
+
+                if audio_file:
+                    st.audio(audio_file)
+                else:
+                    st.error("Audio generation failed.")
+            else:
+                progress_bar.progress(100)
+                progress_box.success("✅ Summary Ready")
+                fact_box.empty()
+                st.markdown(final_response.content)
+
+# ---------------- Q&A ----------------
 st.divider()
-st.caption("© Summora.AI - Professional AI Video Intelligence")
+st.markdown("## 💬 Ask Questions About This Video")
+
+if "transcript" in st.session_state:
+    question = st.text_input("Ask something about the video")
+
+    if st.button("Ask Question"):
+        if question:
+            qa_prompt = f"""
+Answer based ONLY on the transcript below.
+
+Respond in {output_language}.
+If not found, say "Not explicitly mentioned."
+
+Transcript:
+{st.session_state['transcript'][:18000]}
+
+Question:
+{question}
+"""
+            response = llm.invoke(qa_prompt)
+            st.markdown("### 🤖 Answer")
+            st.write(response.content)
