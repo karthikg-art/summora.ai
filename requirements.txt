@@ -1,9 +1,7 @@
 streamlit
-langchain
-langchain-core
-langchain-openai
 openai
-yt-dlp
-requests
-python-dotenv
+langchain-openai
+langchain-core
 langchain-text-splitters
+python-dotenv
+yt-dlp
